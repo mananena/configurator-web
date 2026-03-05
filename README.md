@@ -73,7 +73,7 @@ npm run test:coverage
 
 Проект использует GitHub Actions для непрерывной интеграции. Pipeline запускается автоматически при:
 - Каждом push в ветки `main`, `master` или `develop`
-- Каждом pull request в эти ветки
+- Любом pull request (независимо от целевой ветки)
 
 ### Что делает CI Pipeline
 

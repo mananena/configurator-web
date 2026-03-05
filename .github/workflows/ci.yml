@@ -2,9 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [ main, master, develop ]
+    # Работают на всех ветках
   pull_request:
-    branches: [ main, master, develop ]
 
 jobs:
   test-and-build:
