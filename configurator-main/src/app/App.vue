@@ -16,6 +16,9 @@
         :selected-texture-pack="state.selectedTexturePack"
         @select-part="selectPart"
         @select-texture-pack="selectTexturePack"
+        @toggle-visibility="togglePartVisibility"
+        @hide-all="hideAllParts"
+        @show-all="showAllParts"
         @back="goBack"
         @reset="resetConfiguration"
       />
@@ -25,16 +28,18 @@
           :model-path="state.selectedModel.path"
           :selected-part="state.selectedPart"
           :selected-texture-pack="state.selectedTexturePack"
+          :visible-parts="visiblePartsSet"
           @parts-loaded="onPartsLoaded"
           @part-click="selectPart"
         />
       </div>
+
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted } from "vue";
+import { reactive, onMounted, computed } from "vue";
 import ModelSelector from "../components/ModelSelector.vue";
 import ModelViewer from "../components/ModelViewer.vue";
 import ConfigSidebar from "../components/ConfigSidebar.vue";
@@ -54,6 +59,19 @@ const state = reactive<ConfiguratorState>({
   selectedTexturePack: null,
 });
 
+const visiblePartsSet = computed(() => {
+  const visibleSet = new Set<string>();
+  
+  // Показываем части согласно их флагу visible
+  state.parts.forEach(part => {
+    if (part.visible !== false) {
+      visibleSet.add(part.name);
+    }
+  });
+  
+  return visibleSet;
+});
+
 onMounted(async () => {
   // Загрузить список моделей
   const loadedModels = await window.configuratorAPI.loadModels();
@@ -68,7 +86,10 @@ function selectModel(model: Model) {
 }
 
 function onPartsLoaded(parts: ModelPart[]) {
-  state.parts = parts;
+  state.parts = parts.map(part => ({
+    ...part,
+    visible: true,
+  }));
 }
 
 function selectPart(part: ModelPart) {
@@ -90,6 +111,27 @@ function resetConfiguration() {
   state.selectedPart = null;
   state.selectedTexturePack = null;
 }
+
+// Фунции для управления видимостью деталей
+function togglePartVisibility(part: ModelPart) {
+  const index = state.parts.findIndex(p => p.name === part.name);
+  if (index !== -1 && state.parts[index]) {
+    state.parts[index]!.visible = !state.parts[index]!.visible;
+  }
+}
+function hideAllParts() {
+  state.parts.forEach(part => {
+    part.visible = false;
+  });
+}
+
+function showAllParts() {
+  state.parts.forEach(part => {
+    part.visible = true;
+  });
+}
+
+
 </script>
 
 <style scoped>
@@ -111,5 +153,9 @@ function resetConfiguration() {
   flex: 1;
   height: 100%;
   background: #f5f5f5;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+} 
 }
 </style>

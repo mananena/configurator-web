@@ -13,6 +13,7 @@ interface Props {
   modelPath: string;
   selectedPart: ModelPart | null;
   selectedTexturePack: TexturePack | null;
+  visibleParts: Set<string>;
 }
 
 const props = defineProps<Props>();
@@ -64,6 +65,14 @@ watch(
       applyTexturePack(newPack);
     }
   }
+);
+
+watch(
+  () => props.visibleParts,
+  (visibleParts) => {
+    updatePartsVisibility(visibleParts);
+  },
+  { deep: true }
 );
 
 function initScene() {
@@ -146,6 +155,9 @@ function loadModel() {
 
           // Добавить свойство для хранения оригинального материала
           (child as any).originalMaterial = child.material.clone();
+          
+          // Инициализировать видимость
+          part.visible = true;
         }
       });
 
@@ -288,6 +300,16 @@ function applyTexturePack(pack: TexturePack) {
           );
         }
       );
+    }
+  });
+}
+
+function updatePartsVisibility(visibleParts: Set<string>) {
+  parts.forEach((part) => {
+    if (part.mesh) {
+      const shouldBeVisible = visibleParts.has(part.name);
+      part.mesh.visible = shouldBeVisible;
+      part.visible = shouldBeVisible;
     }
   });
 }
