@@ -113,9 +113,6 @@
             :aria-expanded="animControlsOpen"
           >
             <span class="animation-tab-handle" aria-hidden="true"></span>
-            <span class="animation-tab-label">{{
-              animControlsOpen ? '▼ Анимация' : '▲ Анимация'
-            }}</span>
           </button>
 
           <AnimationControls
