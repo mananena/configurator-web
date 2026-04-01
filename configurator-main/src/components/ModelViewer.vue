@@ -14,6 +14,7 @@ interface Props {
   selectedPart: ModelPart | null;
   selectedTexturePack: TexturePack | null;
   visibleParts: Set<string>;
+  focusOnSelectedPart?: boolean;
   isAnimationPlaying?: boolean;
   animationTime?: number;
   animationSpeed?: number;
@@ -46,6 +47,9 @@ let currentAction: THREE.AnimationAction | null = null;
 let clock: THREE.Clock;
 
 const parts: ModelPart[] = [];
+// Так как модель принудительно центрируется в сцене (см. loadModel),
+// базовый pivot для вращения по умолчанию - мировой (0,0,0).
+const defaultOrbitTarget = new THREE.Vector3(0, 0, 0);
 
 onMounted(() => {
   clock = new THREE.Clock();
@@ -71,6 +75,14 @@ watch(
   () => props.selectedPart,
   (newPart) => {
     highlightPart(newPart);
+    updateOrbitTarget(newPart);
+  }
+);
+
+watch(
+  () => props.focusOnSelectedPart,
+  () => {
+    updateOrbitTarget(props.selectedPart);
   }
 );
 
@@ -338,6 +350,26 @@ function highlightPart(part: ModelPart | null) {
     highlightMaterial.needsUpdate = true;
     part.mesh.material = highlightMaterial;
   }
+}
+
+function updateOrbitTarget(part: ModelPart | null) {
+  if (!controls) return;
+
+  if (!props.focusOnSelectedPart || !part?.mesh) {
+    controls.target.copy(defaultOrbitTarget);
+    controls.update();
+    return;
+  }
+
+  // Обновляем матрицы мира на случай анимаций/перемещений
+  part.mesh.updateWorldMatrix(true, false);
+
+  const box = new THREE.Box3().setFromObject(part.mesh);
+  const center = box.getCenter(new THREE.Vector3());
+
+  // OrbitControls вращает камеру вокруг controls.target
+  controls.target.copy(center);
+  controls.update();
 }
 
 function applyTexturePack(pack: TexturePack) {
