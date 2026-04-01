@@ -259,6 +259,9 @@ html {
   flex: 1;
   height: 100%;
   background: #f5f5f5;
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 :focus-visible {
