@@ -256,8 +256,9 @@ export function main(
   return result;
 }
 
-// Run if executed directly (ESM check)
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+// Run if executed directly. Compare normalized absolute paths so this also works on Windows under tsx.
+const isMainModule = process.argv[1] != null
+  && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   main();
 }

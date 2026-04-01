@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run generate:styles",
     "prebuild": "npm run generate:styles",
+    "pretest": "npm run generate:styles",
     "build": "vue-tsc -b && vite build",
     "generate:styles": "npx tsx scripts/generate-iframe-styles.ts",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest",

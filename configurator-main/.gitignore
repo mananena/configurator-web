@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+src/helpers/iframe-styles.generated.ts
+src/helpers/iframe-styles.generated.test.ts
 
 # Test coverage
 coverage
