@@ -256,8 +256,9 @@ export function main(
   return result;
 }
 
-// Run if executed directly (ESM check)
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+// Run if executed directly (works with tsx relative argv path)
+const executedFile = process.argv[1] ? resolve(process.argv[1]) : '';
+const isMainModule = executedFile === __filename;
 if (isMainModule) {
   main();
 }

@@ -24,11 +24,30 @@
       />
 
       <div class="viewer-wrapper">
+        <div class="focus-controls-wrapper">
+          <div class="focus-controls-panel">
+            <div class="focus-controls-header">
+              <h3>Фокус</h3>
+            </div>
+            <div class="focus-controls-body">
+              <label class="focus-control-label">
+                <input
+                  type="checkbox"
+                  :checked="viewState.focusOnSelectedPart"
+                  @change="toggleFocusMode"
+                />
+                Фокус на детали
+              </label>
+            </div>
+          </div>
+        </div>
+
         <ModelViewer
           :model-path="state.selectedModel.path"
           :selected-part="state.selectedPart"
           :selected-texture-pack="state.selectedTexturePack"
           :visible-parts="visiblePartsSet"
+          :focus-on-selected-part="viewState.focusOnSelectedPart"
           :is-animation-playing="animationState.isPlaying"
           :animation-time="animationState.seekTime"
           :animation-speed="animationState.speed"
@@ -94,6 +113,10 @@ const animationState = reactive({
   seekTime: undefined as number | undefined,
 });
 
+const viewState = reactive({
+  focusOnSelectedPart: false,
+});
+
 const visiblePartsSet = computed(() => {
   const visibleSet = new Set<string>();
   
@@ -145,6 +168,10 @@ function goBack() {
 function resetConfiguration() {
   state.selectedPart = null;
   state.selectedTexturePack = null;
+}
+
+function toggleFocusMode() {
+  viewState.focusOnSelectedPart = !viewState.focusOnSelectedPart;
 }
 
 // Фунции для управления видимостью деталей
@@ -224,6 +251,65 @@ function changeAnimationLoop(loop: boolean) {
   position: relative;
   display: flex;
   flex-direction: column;
+}
+
+.focus-controls-wrapper {
+  position: absolute;
+  /* Явно якорим к правому нижнему углу viewer-wrapper */
+  inset: auto 20px 20px auto;
+  top: auto !important;
+  left: auto !important;
+  right: 20px !important;
+  bottom: 20px !important;
+  width: max-content;
+  max-width: 280px;
+  z-index: 12;
+  pointer-events: auto;
+}
+
+.focus-controls-panel {
+  background: white;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  min-width: 210px;
+  width: max-content;
+  display: inline-block;
+}
+
+.focus-controls-header {
+  margin-bottom: 10px;
+}
+
+.focus-controls-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.focus-controls-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* В стиле чекбокса "Повтор" из AnimationControls */
+.focus-control-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+}
+
+.focus-control-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #4a90e2;
 }
 
 .animation-controls-wrapper {

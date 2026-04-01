@@ -24,7 +24,7 @@
         @click="$emit('select', model)"
       >
         <div class="model-preview">
-          <img v-if="model.preview" :src="model.preview" :alt="model.name" />
+          <img v-if="model.preview" :src="resolvePreviewUrl(model.preview)" :alt="model.name" />
           <div v-else class="preview-placeholder">🚂</div>
         </div>
         <h3>{{ model.name }}</h3>
@@ -68,6 +68,20 @@ const filteredModels = computed(() =>
     return activeCategory.value === "special-cars";
   })
 );
+
+function resolvePreviewUrl(previewPath: string): string {
+  if (
+    previewPath.startsWith("http://") ||
+    previewPath.startsWith("https://") ||
+    previewPath.startsWith("data:") ||
+    previewPath.startsWith("blob:")
+  ) {
+    return previewPath;
+  }
+
+  const baseUrl = window.parent?.location?.href || window.location.href;
+  return new URL(previewPath, baseUrl).href;
+}
 </script>
 
 <style>
