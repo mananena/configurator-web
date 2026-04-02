@@ -19,6 +19,8 @@ interface Props {
   animationTime?: number;
   animationSpeed?: number;
   animationLoop?: boolean;
+  lightPosition?: { x: number; y: number; z: number };
+  showLightHelper?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -39,6 +41,10 @@ let model: THREE.Group;
 let raycaster: THREE.Raycaster;
 let mouse: THREE.Vector2;
 let animationId: number;
+let directionalLight: THREE.DirectionalLight;
+let lightHelperGroup: THREE.Group;
+let lightSprite: THREE.Sprite;
+let lightLine: THREE.Line;
 
 // Переменные для анимации
 let mixer: THREE.AnimationMixer | null = null;
@@ -76,14 +82,14 @@ watch(
   (newPart) => {
     highlightPart(newPart);
     updateOrbitTarget(newPart);
-  }
+  },
 );
 
 watch(
   () => props.focusOnSelectedPart,
   () => {
     updateOrbitTarget(props.selectedPart);
-  }
+  },
 );
 
 watch(
@@ -92,7 +98,7 @@ watch(
     if (newPack) {
       applyTexturePack(newPack);
     }
-  }
+  },
 );
 
 watch(
@@ -100,7 +106,7 @@ watch(
   (visibleParts) => {
     updatePartsVisibility(visibleParts);
   },
-  { deep: true }
+  { deep: true },
 );
 
 // Отслеживание изменений параметров анимации
@@ -115,7 +121,7 @@ watch(
         currentAction.paused = true;
       }
     }
-  }
+  },
 );
 
 // Перемотка анимации на указанное время
@@ -125,7 +131,7 @@ watch(
     if (mixer && currentAction && time !== undefined) {
       mixer.setTime(time);
     }
-  }
+  },
 );
 
 // Изменение скорости воспроизведения анимации
@@ -135,7 +141,7 @@ watch(
     if (currentAction && speed !== undefined) {
       currentAction.timeScale = speed;
     }
-  }
+  },
 );
 
 // Изменение режима повтора анимации
@@ -145,8 +151,84 @@ watch(
     if (currentAction) {
       currentAction.loop = loop ? THREE.LoopRepeat : THREE.LoopOnce;
     }
-  }
+  },
 );
+
+// Позиция источника света
+watch(
+  () => props.lightPosition,
+  (pos) => {
+    if (!pos) return;
+    if (directionalLight) {
+      directionalLight.position.set(pos.x, pos.y, pos.z);
+    }
+    if (lightSprite) {
+      lightSprite.position.set(pos.x, pos.y, pos.z);
+    }
+    if (lightLine) {
+      const positions = lightLine.geometry.attributes.position as THREE.BufferAttribute;
+      positions.setXYZ(0, pos.x, pos.y, pos.z);
+      positions.needsUpdate = true;
+      lightLine.computeLineDistances();
+    }
+  },
+  { deep: true },
+);
+
+// Видимость хелпера источника света
+watch(
+  () => props.showLightHelper,
+  (visible) => {
+    if (lightHelperGroup) {
+      lightHelperGroup.visible = visible ?? true;
+    }
+  },
+);
+
+function createSunTexture(): THREE.CanvasTexture {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const cx = size / 2, cy = size / 2;
+
+  // Лучи
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 210, 60, 0.85)";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * 24, cy + Math.sin(angle) * 24);
+    ctx.lineTo(cx + Math.cos(angle) * 36, cy + Math.sin(angle) * 36);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Внешнее свечение
+  const glow = ctx.createRadialGradient(cx, cy, 8, cx, cy, 22);
+  glow.addColorStop(0, "rgba(255, 240, 100, 1)");
+  glow.addColorStop(0.5, "rgba(255, 180, 30, 0.9)");
+  glow.addColorStop(1, "rgba(255, 100, 0, 0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Яркий центр
+  const core = ctx.createRadialGradient(cx - 2, cy - 2, 0, cx, cy, 9);
+  core.addColorStop(0, "rgba(255, 255, 255, 1)");
+  core.addColorStop(0.6, "rgba(255, 240, 120, 1)");
+  core.addColorStop(1, "rgba(255, 200, 50, 0.9)");
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+  ctx.fill();
+
+  return new THREE.CanvasTexture(canvas);
+}
 
 function initScene() {
   if (!containerRef.value) return;
@@ -160,7 +242,7 @@ function initScene() {
     60,
     containerRef.value.clientWidth / containerRef.value.clientHeight,
     0.1,
-    1000
+    1000,
   );
   camera.position.set(5, 3, 5);
 
@@ -168,9 +250,11 @@ function initScene() {
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(
     containerRef.value.clientWidth,
-    containerRef.value.clientHeight
+    containerRef.value.clientHeight,
   );
   renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Для красивых мягких краев тени
   containerRef.value.appendChild(renderer.domElement);
 
   // Controls
@@ -182,9 +266,64 @@ function initScene() {
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
   directionalLight.position.set(5, 10, 7);
+
+  directionalLight.castShadow = true;
+
+  directionalLight.shadow.mapSize.width = 2048;
+  directionalLight.shadow.mapSize.height = 2048;
+
+  const d = 10;
+  directionalLight.shadow.camera.left = -d;
+  directionalLight.shadow.camera.right = d;
+  directionalLight.shadow.camera.top = d;
+  directionalLight.shadow.camera.bottom = -d;
+  directionalLight.shadow.camera.near = 0.5;
+  directionalLight.shadow.camera.far = 50;
+
   scene.add(directionalLight);
+
+  // Хелпер источника света (спрайт + линия к центру)
+  lightHelperGroup = new THREE.Group();
+
+  const spriteTexture = createSunTexture();
+  const spriteMat = new THREE.SpriteMaterial({
+    map: spriteTexture,
+    depthTest: false,
+    transparent: true,
+  });
+  lightSprite = new THREE.Sprite(spriteMat);
+  lightSprite.scale.set(2, 2, 1);
+  lightSprite.position.set(5, 10, 7);
+  lightHelperGroup.add(lightSprite);
+
+  const lineGeo = new THREE.BufferGeometry();
+  const linePositions = new Float32Array([5, 10, 7, 0, 0, 0]);
+  lineGeo.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
+  const lineMat = new THREE.LineDashedMaterial({
+    color: 0xf5a623,
+    dashSize: 0.4,
+    gapSize: 0.25,
+    opacity: 0.6,
+    transparent: true,
+  });
+  lightLine = new THREE.Line(lineGeo, lineMat);
+  lightLine.computeLineDistances();
+  lightHelperGroup.add(lightLine);
+
+  lightHelperGroup.visible = props.showLightHelper ?? true;
+  scene.add(lightHelperGroup);
+
+  const planeGeometry = new THREE.PlaneGeometry(200, 200);
+  const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.5 });
+  const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.y = 0;
+  plane.receiveShadow = true;
+
+  scene.add(plane);
 
   // Raycaster for picking
   raycaster = new THREE.Raycaster();
@@ -216,6 +355,8 @@ function loadModel() {
       // Извлечь все детали модели
       model.traverse((child) => {
         if (child instanceof THREE.Mesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
           const part: ModelPart = {
             name: child.name || "Unnamed",
             materialName: child.material?.name || "default",
@@ -228,7 +369,7 @@ function loadModel() {
 
           // Добавить свойство для хранения оригинального материала
           (child as any).originalMaterial = child.material.clone();
-          
+
           // Инициализировать видимость
           part.visible = true;
         }
@@ -239,22 +380,29 @@ function loadModel() {
       // Центрировать модель
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
-      model.position.sub(center);
+      model.position.x -= center.x;
+      model.position.z -= center.z;
+      model.position.y -= box.min.y;
 
       // Обработка анимаций из загруженной модели
       if (gltf.animations && gltf.animations.length > 0) {
         animations = gltf.animations;
         mixer = new THREE.AnimationMixer(model);
-        
+
         // Запустить первую анимацию из списка
         currentAction = mixer.clipAction(animations[0]!);
-        currentAction.loop = THREE.LoopRepeat;  // Режим повтора по умолчанию
+        currentAction.loop = THREE.LoopRepeat; // Режим повтора по умолчанию
         currentAction.play();
         currentAction.paused = true; // Начинаем с паузы
-        
+
         const duration = animations[0]!.duration;
         emit("animationsLoaded", true, duration);
-        console.log("Анимации загружены:", animations.length, "Длительность:", duration);
+        console.log(
+          "Анимации загружены:",
+          animations.length,
+          "Длительность:",
+          duration,
+        );
       } else {
         emit("animationsLoaded", false, 0);
         console.log("Анимации не найдены");
@@ -268,24 +416,24 @@ function loadModel() {
       console.error("Ошибка загрузки модели:", error);
       console.error("Путь к модели:", absolutePath);
       console.error("Оригинальный путь:", props.modelPath);
-    }
+    },
   );
 }
 
 function animate() {
   animationId = requestAnimationFrame(animate);
-  
+
   // Обновление анимации при воспроизведении
   if (mixer && props.isAnimationPlaying) {
     const delta = clock.getDelta();
     mixer.update(delta);
-    
+
     // Отправить текущее время анимации родительскому компоненту
     if (currentAction) {
       emit("animationTimeUpdate", currentAction.time);
     }
   }
-  
+
   controls.update();
   renderer.render(scene, camera);
 }
@@ -298,7 +446,7 @@ function onWindowResize() {
   camera.updateProjectionMatrix();
   renderer.setSize(
     containerRef.value.clientWidth,
-    containerRef.value.clientHeight
+    containerRef.value.clientHeight,
   );
 }
 
@@ -386,7 +534,7 @@ function applyTexturePack(pack: TexturePack) {
         : new URL(texturePath, window.parent.location.href).href;
 
       console.log(
-        `Деталь: ${part.name}, Материал: ${part.materialName}, Путь: ${absoluteTexturePath}`
+        `Деталь: ${part.name}, Материал: ${part.materialName}, Путь: ${absoluteTexturePath}`,
       );
 
       textureLoader.load(
@@ -394,7 +542,7 @@ function applyTexturePack(pack: TexturePack) {
         (texture) => {
           if (part.mesh) {
             console.log(
-              `✓ Текстура загружена для ${part.name} (${part.materialName})`
+              `✓ Текстура загружена для ${part.name} (${part.materialName})`,
             );
 
             const originalMat = (part.mesh as any).originalMaterial;
@@ -420,9 +568,9 @@ function applyTexturePack(pack: TexturePack) {
         undefined,
         (_error) => {
           console.warn(
-            `✗ Не удалось загрузить текстуру для ${part.name} (${part.materialName}): ${absoluteTexturePath}`
+            `✗ Не удалось загрузить текстуру для ${part.name} (${part.materialName}): ${absoluteTexturePath}`,
           );
-        }
+        },
       );
     }
   });
