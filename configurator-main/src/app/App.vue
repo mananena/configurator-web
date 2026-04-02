@@ -19,6 +19,8 @@
           :texture-packs="state.selectedModel?.texturePacks"
           :selected-part="state.selectedPart"
           :selected-texture-pack="state.selectedTexturePack"
+          :light-position="lightPosition"
+          :show-light-helper="showLightHelper"
           @select-part="selectPart"
           @select-texture-pack="selectTexturePack"
           @toggle-visibility="togglePartVisibility"
@@ -26,6 +28,8 @@
           @show-all="showAllParts"
           @back="goBack"
           @reset="resetConfiguration"
+          @light-position-change="updateLightPosition"
+          @light-helper-toggle="(v) => (showLightHelper = v)"
         />
 
         <!-- Кнопка-закладка-->
@@ -108,6 +112,8 @@
           :animation-time="animationState.seekTime"
           :animation-speed="animationState.speed"
           :animation-loop="animationState.loop"
+          :light-position="lightPosition"
+          :show-light-helper="showLightHelper"
           @parts-loaded="onPartsLoaded"
           @part-click="selectPart"
           @animations-loaded="onAnimationsLoaded"
@@ -205,6 +211,15 @@ const animationState = reactive({
 const viewState = reactive({
   focusOnSelectedPart: false,
 });
+
+const lightPosition = reactive({ x: 5, y: 10, z: 7 });
+const showLightHelper = ref(true);
+
+function updateLightPosition(pos: { x: number; y: number; z: number }) {
+  lightPosition.x = pos.x;
+  lightPosition.y = pos.y;
+  lightPosition.z = pos.z;
+}
 
 const visiblePartsSet = computed(() => {
   const visibleSet = new Set<string>();

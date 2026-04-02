@@ -93,12 +93,65 @@
               part.visible === false ? 'Показать деталь' : 'Скрыть деталь'
             "
           >
-            {{ part.visible === false ? 'Показать' : 'Скрыть' }}
+            {{ part.visible === false ? "Показать" : "Скрыть" }}
           </BaseButton>
         </div>
       </div>
     </div>
+    <div class="sidebar-section" v-if="lightPosition">
+      <div class="section-header">
+        <h3>Освещение</h3>
+        <label class="light-helper-toggle">
+          <input
+            type="checkbox"
+            :checked="showLightHelper"
+            @change="$emit('lightHelperToggle', ($event.target as HTMLInputElement).checked)"
+          />
+          Показать на сцене
+        </label>
+      </div>
 
+      <!-- Пресеты -->
+      <div class="light-presets">
+        <button class="light-preset-btn" @click="setPreset('top')" title="Свет сверху">↑ Сверху</button>
+        <button class="light-preset-btn" @click="setPreset('front')" title="Свет спереди">↗ Спереди</button>
+        <button class="light-preset-btn" @click="setPreset('left')" title="Свет слева">← Слева</button>
+        <button class="light-preset-btn" @click="setPreset('right')" title="Свет справа">→ Справа</button>
+      </div>
+
+      <!-- 2D пад для направления (XZ плоскость) -->
+      <div class="light-pad-title">Направление (вид сверху)</div>
+      <div
+        ref="padRef"
+        class="light-pad"
+        @mousedown.prevent="onPadStart"
+        @touchstart.prevent="onPadStart"
+      >
+        <div class="light-pad-axis-x"></div>
+        <div class="light-pad-axis-y"></div>
+        <div class="light-pad-dot" :style="dotStyle"></div>
+      </div>
+      <div class="light-pad-axis-labels">
+        <span>← X</span>
+        <span>Z ↕</span>
+        <span>X →</span>
+      </div>
+
+      <!-- Слайдер высоты -->
+      <div class="light-height-row">
+        <span class="light-height-name">Высота</span>
+        <span class="light-height-value">{{ lightPosition.y.toFixed(1) }}</span>
+      </div>
+      <input
+        class="light-height-slider"
+        type="range"
+        min="0"
+        max="25"
+        step="0.5"
+        :value="lightPosition.y"
+        @input="$emit('lightPositionChange', { ...lightPosition, y: +($event.target as HTMLInputElement).value })"
+      />
+    </div>
     <div class="sidebar-footer">
       <BaseButton variant="danger" @click="$emit('reset')">
         Сбросить всё
@@ -108,15 +161,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { ModelPart, TexturePack } from '../types/models';
-import BaseButton from './BaseButton.vue';
+import { computed, ref, onBeforeUnmount } from "vue";
+import type { ModelPart, TexturePack } from "../types/models";
+import BaseButton from "./BaseButton.vue";
 
 interface Props {
   parts: ModelPart[];
   texturePacks?: TexturePack[];
   selectedPart: ModelPart | null;
   selectedTexturePack: TexturePack | null;
+  lightPosition?: { x: number; y: number; z: number };
+  showLightHelper?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -125,7 +180,7 @@ const hasHiddenParts = computed(() => {
   return props.parts.some((part) => part.visible === false);
 });
 
-defineEmits<{
+const emit = defineEmits<{
   selectPart: [part: ModelPart];
   selectTexturePack: [pack: TexturePack];
   toggleVisibility: [part: ModelPart];
@@ -133,7 +188,80 @@ defineEmits<{
   showAll: [];
   back: [];
   reset: [];
+  lightPositionChange: [pos: { x: number; y: number; z: number }];
+  lightHelperToggle: [visible: boolean];
 }>();
+
+// ── Управление источником света ─────────────────────────────────
+
+const PAD_RANGE = 15;
+const padRef = ref<HTMLDivElement | null>(null);
+const isDragging = ref(false);
+
+const dotStyle = computed(() => {
+  const pos = props.lightPosition;
+  if (!pos) return { left: "50%", top: "50%" };
+  const x = Math.max(-PAD_RANGE, Math.min(PAD_RANGE, pos.x));
+  const z = Math.max(-PAD_RANGE, Math.min(PAD_RANGE, pos.z));
+  // На паде: X → горизонталь, Z → вертикаль (верх пада = положительный Z)
+  const left = (x / PAD_RANGE) * 50 + 50;
+  const top = (-z / PAD_RANGE) * 50 + 50;
+  return { left: `${left}%`, top: `${top}%` };
+});
+
+function posFromEvent(event: MouseEvent | TouchEvent): { x: number; z: number } {
+  const pad = padRef.value;
+  if (!pad) return { x: 0, z: 0 };
+  const rect = pad.getBoundingClientRect();
+  const clientX = "touches" in event ? event.touches[0]!.clientX : event.clientX;
+  const clientY = "touches" in event ? event.touches[0]!.clientY : event.clientY;
+  const rx = Math.max(0, Math.min(rect.width, clientX - rect.left));
+  const ry = Math.max(0, Math.min(rect.height, clientY - rect.top));
+  const x = ((rx / rect.width) - 0.5) * 2 * PAD_RANGE;
+  const z = -((ry / rect.height) - 0.5) * 2 * PAD_RANGE;
+  return {
+    x: Math.round(x * 2) / 2,
+    z: Math.round(z * 2) / 2,
+  };
+}
+
+function onPadStart(event: MouseEvent | TouchEvent) {
+  isDragging.value = true;
+  const { x, z } = posFromEvent(event);
+  emit("lightPositionChange", { ...props.lightPosition!, x, z });
+  window.addEventListener("mousemove", onPadMove);
+  window.addEventListener("mouseup", onPadEnd);
+  window.addEventListener("touchmove", onPadMove as EventListener, { passive: false });
+  window.addEventListener("touchend", onPadEnd);
+}
+
+function onPadMove(event: MouseEvent | TouchEvent) {
+  if (!isDragging.value) return;
+  if ("touches" in event) event.preventDefault();
+  const { x, z } = posFromEvent(event);
+  emit("lightPositionChange", { ...props.lightPosition!, x, z });
+}
+
+function onPadEnd() {
+  isDragging.value = false;
+  window.removeEventListener("mousemove", onPadMove);
+  window.removeEventListener("mouseup", onPadEnd);
+  window.removeEventListener("touchmove", onPadMove as EventListener);
+  window.removeEventListener("touchend", onPadEnd);
+}
+
+onBeforeUnmount(onPadEnd);
+
+const PRESETS: Record<string, { x: number; y: number; z: number }> = {
+  top:   { x: 0,   y: 20, z: 0  },
+  front: { x: 0,   y: 8,  z: 15 },
+  left:  { x: -15, y: 8,  z: 0  },
+  right: { x: 15,  y: 8,  z: 0  },
+};
+
+function setPreset(key: string) {
+  emit("lightPositionChange", { ...PRESETS[key]! });
+}
 </script>
 
 <style>
@@ -431,6 +559,141 @@ defineEmits<{
 .pack-name {
   font-size: 14px;
   color: #333;
+}
+
+/* ── Освещение ────────────────────────────────────────────────── */
+
+.light-helper-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.light-helper-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: #4a90e2;
+  flex-shrink: 0;
+}
+
+
+.light-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.light-preset-btn {
+  padding: 7px 6px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #f8f9fa;
+  cursor: pointer;
+  font-size: 12px;
+  color: #555;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  text-align: center;
+}
+
+.light-preset-btn:hover {
+  background: #e8f0fe;
+  border-color: #4a90e2;
+  color: #4a90e2;
+}
+
+.light-pad-title {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.light-pad {
+  width: 100%;
+  aspect-ratio: 1;
+  background: #f0f4f8;
+  border: 1px solid #d0d7df;
+  border-radius: 10px;
+  position: relative;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+  overflow: hidden;
+}
+
+.light-pad-axis-x {
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  top: 50%;
+  left: 0;
+  background: #c8d0da;
+}
+
+.light-pad-axis-y {
+  position: absolute;
+  width: 1px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+  background: #c8d0da;
+}
+
+.light-pad-dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: radial-gradient(circle at 40% 35%, #ffe066, #f5a623);
+  border: 2px solid #d4880a;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 8px 2px rgba(245, 166, 35, 0.5);
+  pointer-events: none;
+  transition: box-shadow 0.1s;
+}
+
+.light-pad:active .light-pad-dot {
+  box-shadow: 0 0 14px 4px rgba(245, 166, 35, 0.7);
+}
+
+.light-pad-axis-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #aaa;
+  margin: 4px 2px 12px;
+}
+
+.light-height-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.light-height-name {
+  font-size: 13px;
+  color: #555;
+}
+
+.light-height-value {
+  font-size: 12px;
+  color: #888;
+  min-width: 32px;
+  text-align: right;
+}
+
+.light-height-slider {
+  width: 100%;
+  accent-color: #4a90e2;
+  cursor: pointer;
 }
 
 /* Мобильные стили */
