@@ -6,7 +6,8 @@ const models = [
     id: "ed4m_car",
     name: "Вагон ЭД4М",
     path: "/models/ed4m_car/scene.gltf",
-    category: "electric-and-diesel-trains",
+    category: "passenger-cars",
+    preview: "models/ed4m_car/preview.png",
     texturePacks: [
       { id: "blue", name: "Синий", path: "/models/ed4m_car/text/blue" },
       { id: "red", name: "Красный", path: "/models/ed4m_car/text/red" },
@@ -16,7 +17,7 @@ const models = [
     id: "reductor",
     name: "Редуктор",
     path: "/models/reductor/Редуктор_червячный_Ч_100_АНИМАЦИЯ_рабочий_вариант.glb",
-    preview: "/models/default-preview.svg", // нужно указать реальный путь, было сделано для тестов
+    preview: "/models/reductor/preview.png", // нужно указать реальный путь, было сделано для тестов
     category: "special-cars",
     texturePacks: [],
   },
