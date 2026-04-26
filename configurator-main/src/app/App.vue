@@ -164,7 +164,11 @@
         <button
           class="info-panel-tab"
           @click="toggleInfoPanel"
-          :aria-label="infoPanelOpen ? 'Закрыть информацию о модели' : 'Открыть информацию о модели'"
+          :aria-label="
+            infoPanelOpen
+              ? 'Закрыть информацию о модели'
+              : 'Открыть информацию о модели'
+          "
           :aria-expanded="infoPanelOpen"
           aria-controls="model-info-panel"
         >
@@ -492,7 +496,7 @@ function changeAnimationLoop(loop: boolean) {
   user-select: none;
 }
 
-.focus-control-label input[type="checkbox"] {
+.focus-control-label input[type='checkbox'] {
   width: 18px;
   height: 18px;
   cursor: pointer;
@@ -524,6 +528,7 @@ function changeAnimationLoop(loop: boolean) {
 
 .info-panel-drawer--open {
   transform: translateX(0);
+  z-index: 101;
 }
 
 .info-panel-tab {
@@ -677,6 +682,29 @@ function changeAnimationLoop(loop: boolean) {
     font-size: 14px;
     color: #555;
     font-weight: 600;
+  }
+}
+
+/* На очень узких экранах кнопки переносятся внутрь открытой панели */
+@media (max-width: 364px) {
+  .sidebar-drawer--open .sidebar-tab {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    align-self: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1;
+  }
+
+  .info-panel-drawer--open .info-panel-tab {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    align-self: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 999;
   }
 }
 </style>
